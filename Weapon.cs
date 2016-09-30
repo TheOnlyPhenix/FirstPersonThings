@@ -49,10 +49,22 @@ public class Weapon : MonoBehaviour {
 	public string Anim_Aim;
 
 	[Header ("Finally, this is for aiming!")]
-	public Transform StartingPos;//This wont need to be set, this will automatically be set. I probably should just make this private
+	public Vector3 StartPos;
+	public Quaternion StartRot;
+
 	[Header ("This is where the gun will be by the time its completely aimed in")]
 	[Tooltip ("This will be for the whole gameobject")]
-	public Transform EndingPos;
+	public Vector3 EndPos;
+	public Quaternion EndRot;
+
+	public bool CameraStuff = false;
+
+	public float PercentAimedIn;//This should eventually be set to private.
+	public float ActualAimInNum;
+	public float ActualAimOutNum;
+	public float DistanceOfAim;
+	public float PercentCam;//This should only be for me and if CameraStuff == true;
+
 	[Header("I shouldn't have to explain this one..")]
 	[Tooltip("I really shouldn't...")]
 	public float AimingSpeed;
@@ -115,8 +127,35 @@ public class Weapon : MonoBehaviour {
 
 
 		//Aiming Lerping handling
+		if (Input.GetKey (KeyCode.Mouse1)) {//You should probably change this to load what keycode from your settings file.
+			if (ActualAimInNum < DistanceOfAim) {
 
+				AimStatus = WeaponAimStatus.Aiming;
+				ActualAimInNum += Time.deltaTime * AimingSpeed;
+				float finale = ActualAimInNum / DistanceOfAim;
 
+				transform.localPosition = Vector3.Lerp (StartPos, EndPos, finale);
+				ActualAimOutNum = DistanceOfAim - ActualAimInNum;
+			}else if (ActualAimInNum > DistanceOfAim) {//might need to keep an eye on this
+				ActualAimInNum = DistanceOfAim;
+				ActualAimOutNum = 0.0f;
+				AimStatus = WeaponAimStatus.Aimed;
+			}
+		} else {
+			if (ActualAimOutNum < DistanceOfAim) {
+				AimStatus = WeaponAimStatus.UnAiming;
+				ActualAimOutNum += Time.deltaTime * AimingSpeed;
+				float finale = ActualAimOutNum / DistanceOfAim;
+				ActualAimInNum = DistanceOfAim - ActualAimOutNum;//Multipliying all these by the variable aimingspeed might be a bad idea. I'll find out later :P
+				transform.localPosition = Vector3.Lerp(EndPos, StartPos, finale);
+
+			} else if (ActualAimOutNum > DistanceOfAim) {
+				ActualAimOutNum = DistanceOfAim;
+				ActualAimInNum = 0.0f;
+				AimStatus = WeaponAimStatus.UnAimed;
+			}
+		}
+		PercentAimedIn = ActualAimInNum * 100;
 		//Attack Handling
 
 
@@ -167,11 +206,13 @@ public class Weapon : MonoBehaviour {
 		} else {
 			Debug.Log ("I don't have an Animtor Controller Component attached to " + WeaponName);
 		}
-		StartingPos = transform;
+		StartPos = transform.localPosition;
+		StartRot = transform.localRotation;
+		DistanceOfAim = Vector3.Distance (StartPos, EndPos);
 
 
 
-
+		
 
 	}
 
