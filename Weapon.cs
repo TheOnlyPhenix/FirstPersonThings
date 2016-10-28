@@ -1,9 +1,21 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class Weapon : MonoBehaviour {
 	public enum WeaponType {MeleeOnly, ProjectileOnly, ProjectileAndMelee};//"projectile" basically means if it is a gun that shoots bullets. HINT: you can use this for bows too!
 	public enum FireMode {Bolt, Semi, Auto};
+
+	public KeyCode Shoot;//set this from your settings file.
+
+	public bool AllowedToFire;//This is just so you can control if the player can fire via other scripts. Like in a safe zone or something, set this to false.
+
+	public bool IsBursting;//Don't mind this.
+	public bool IsRunning;//This only gets read in here, this does not get set. You have to set this manually from a player controller or something.
+
+	[Header("You know what this is for")]
+	public bool UseAmmo;
+	public int MaxAmmoInClip, MaxAmmoCanCarry, CurrentAmmo, CurrentAmmoInClip;
+	public int AmmoUsedPerShot;
 
 	[Tooltip ("This will be the name that shows up in-game " +
 		"and what other scripts search for.")]
@@ -35,6 +47,7 @@ public class Weapon : MonoBehaviour {
 
 	public Animator ThisAnimatorController;//I will need to make a readme on how to setup the animator controller stuff. Its the only way I know how to handle animations AND that is not depreciated!
 
+	public string DebugReset;
 	[Header ("These names are what you called the variables in the animator controller (these are booleans")]
 	public string Anim_Idle;
 	public string Anim_Walk;
@@ -47,6 +60,7 @@ public class Weapon : MonoBehaviour {
 	public string Anim_Fire;
 	public string Anim_Melee;
 	public string Anim_Aim;
+	public string Anim_Reload;
 
 	[Header ("Finally, this is for aiming!")]
 	public Vector3 StartPos;
@@ -84,7 +98,7 @@ public class Weapon : MonoBehaviour {
 	[Tooltip ("The amount of time that is inbetween shots of the burst." +
 		"This is set in seconds.")]
 	[Header ("Seconds in between shots")]
-	public float TimeBetweenShotBursts;//if this is set to 0, you have your self a shotgun!
+	public float ROF;//if this is set to 0, you have your self a shotgun!
 
 	[Tooltip ("This is universal for all types. This is the weapon mass.")]
 	[Header ("Mass in pounds")]
@@ -97,34 +111,26 @@ public class Weapon : MonoBehaviour {
 	public Transform ExitBarrel;
 
 	void Start () {//Any weapon of any kind shouldn't be enabled or "IsSelected"(Which is the same thing)
+		
 		PreSetVariables();
 		DisableExitBarrelRenderer();
 		CheckReady ();
-		DrawWeapon ();//I Might need to call this later.
+		//DrawWeapon ();//I Might need to call this later.
+	}
+
+	void Awake(){//I should eventually get rid of the awake function
+		PreSetVariables();
+		CheckReady ();
+		DrawWeapon ();
 	}
 
 	void Update () {
+		if (!IsBursting && !IsRunning) {
+			ThisAnimatorController.SetBool (Anim_Idle, true);// I might need to do something with Animator.GetBool(Anim_Drawn)
+		}
+
+
 		//Animation Handling
-		if (Input.GetKeyDown (KeyCode.Mouse0)) {
-			
-			AttemptToFire ();
-
-		}
-
-
-		//Aim Handling
-/*		if (Input.GetKeyDown (KeyCode.Mouse1)) {
-			//ThisAnimatorController.SetBool (Anim_Aiming, true);                 This is all for me
-			ThisAnimatorController.SetTrigger (Anim_Aim);
-		}
-		if (Input.GetKey (KeyCode.Mouse1)) {
-			ThisAnimatorController.SetBool (Anim_Aiming, true);
-		}
-		if (!Input.GetKey (KeyCode.Mouse1)) {
-			ThisAnimatorController.SetBool (Anim_Aiming, false);
-		}
-*/
-
 
 		//Aiming Lerping handling
 		if (Input.GetKey (KeyCode.Mouse1)) {//You should probably change this to load what keycode from your settings file.
@@ -157,16 +163,61 @@ public class Weapon : MonoBehaviour {
 		}
 		PercentAimedIn = ActualAimInNum * 100;
 		//Attack Handling
+		if (Input.GetKeyDown (Shoot)) {
+			if(AllowedToFire){
+				//this is the burst handling if there is any.
+				if (ShotsPerBurst > 1) {
 
+					if (!IsBursting) {
+						StartCoroutine ("Burst");
+					}
+
+				} else if (ShotsPerBurst == 1) {
+					AttemptToFire ();
+				}
+
+			}
+		}
 
 
 
 	}
 
-	void AttemptToFire(){
-		if (ReadyToFire) {
-			Fire ();
+	IEnumerator Burst(){
+		if (CurrentAmmoInClip <= MaxAmmoInClip && CurrentAmmoInClip > AmmoUsedPerShot) {
+			IsBursting = true;
+			for (int I = 0; I < ShotsPerBurst; I++) {// I will need to add a current ammo in clip checker to this.
+				Debug.Log ("Shots Fired!");
+				AttemptToFire ();
+
+				yield return new WaitForSeconds (ROF);
+			}
+			if (ShotsPerBurst == AmmoUsedPerShot) {
+				CurrentAmmoInClip -= AmmoUsedPerShot;
+				Debug.Log ("Party animal");
+			}
+			IsBursting = false;
 		}
+	}
+
+	void AttemptToFire(){
+		if (ReadyToFire) {//
+			if (AllowedToFire) {//3
+			//Debug.Log("TacoBell is ass");
+			if (UseAmmo){
+				//Debug.Log("TacoBell is ass");
+				if (CurrentAmmoInClip <= MaxAmmoInClip && CurrentAmmoInClip > AmmoUsedPerShot) {
+					//Debug.Log("TacoBell is ass");
+						Debug.Log("TacoBell is ass");
+						//Debug.Log(this.name);
+						ThisAnimatorController.SetTrigger(Anim_Fire);
+						Fire ();//This needs to be a co-routine
+					}
+				}
+			}//3
+
+
+		}//
 	}
 
 	void Fire(){//This is where I will handle the bursts, maximum fire rates and whatnot
@@ -175,28 +226,58 @@ public class Weapon : MonoBehaviour {
 		if (Physics.Raycast (ExitBarrel.position, Vector3.forward, out ObjectHit)) {
 			//ThisAnimatorController.Set
 			//Debug.DrawRay (ExitBarrel.position, ExitBarrel.transform.TransformVector(Vector3.forward), Color.cyan, 60.0f, false);
-			Debug.Log (WeaponName + " has hit " + ObjectHit.transform.name);
+			//Debug.Log (WeaponName + " has hit " + ObjectHit.transform.name);
 		}
-	}
+
+	} 
 
 	void DrawWeapon(){
+		ThisAnimatorController.SetBool (Anim_Idle, true);
 		if (!WeaponDrawn) {
 			if (!ThisAnimatorController.GetBool (Anim_WeaponIsDrawn)) {
-				ThisAnimatorController.SetBool(Anim_WeaponIsDrawn, true);
+				ThisAnimatorController.SetBool (Anim_WeaponIsDrawn, true);
+				ThisAnimatorController.SetBool (Anim_Idle, true);
 				ThisAnimatorController.SetTrigger (Anim_Draw);
 				WeaponDrawn = true;
 
 			}
+		} else {
+			ThisAnimatorController.SetBool (Anim_Idle, true);
+			ThisAnimatorController.SetTrigger (Anim_Draw);//THIS MIGHT NOT NEED TO BE HERE, BOTH OF THESE LINES ACTUALLY AHHHH
 		}
 	}
 
+	void Reload(){
+		if (CurrentAmmoInClip < MaxAmmoInClip) {
+			if (CurrentAmmo > 0) {
+				if (CurrentAmmo < MaxAmmoInClip) {
+					ThisAnimatorController.SetTrigger (Anim_Reload);//I'm going to have to do something with making sure this gets completed
+					CurrentAmmoInClip = CurrentAmmo;
+					CurrentAmmo = 0;
+
+				} else if (CurrentAmmo > MaxAmmoInClip) {
+					ThisAnimatorController.SetTrigger (Anim_Reload);//I'm going to have to do something with making sure this gets completed
+					CurrentAmmoInClip = MaxAmmoInClip;
+					CurrentAmmo = CurrentAmmo - MaxAmmoInClip;
+				}
+			}
+
+		} else {
+			//You don't need to reload then.
+		}
+	}
+
+
 	void CheckReady(){//I will add an If statement to check ammo count and probably another variable.
 		ReadyToFire = true;
+		ThisAnimatorController.SetTrigger (DebugReset);
 	}
 
 	void DisableExitBarrelRenderer(){
-		ExitBarrel.GetComponent<MeshRenderer>().enabled = false;
-		ExitBarrel.GetComponent<MeshCollider>().enabled = false;
+		if (ExitBarrel) {
+			ExitBarrel.GetComponent<MeshRenderer> ().enabled = false;
+			ExitBarrel.GetComponent<MeshCollider> ().enabled = false;
+		}
 	}
 
 	void PreSetVariables(){//This is where object references are set, and where the aiming transforms are originally set.
@@ -204,7 +285,7 @@ public class Weapon : MonoBehaviour {
 		if (GetComponent<Animator> ()) {
 			ThisAnimatorController = GetComponent<Animator> ();
 		} else {
-			Debug.Log ("I don't have an Animtor Controller Component attached to " + WeaponName);
+			Debug.Log ("I don't have an Animator Controller Component attached to " + WeaponName);
 		}
 		StartPos = transform.localPosition;
 		StartRot = transform.localRotation;
@@ -212,7 +293,7 @@ public class Weapon : MonoBehaviour {
 
 
 
-		
+
 
 	}
 
